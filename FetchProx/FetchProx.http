@@ -1,0 +1,8 @@
+@FetchProx_HostAddress = https://localhost:7219
+
+POST {{FetchProx_HostAddress}}/fetch
+Content-type: text/plain
+
+https://github.com/qdm12/gluetun
+
+###
