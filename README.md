@@ -51,4 +51,4 @@ docker run -p 8080:8080 fetchprox
 Or use the provided `docker-compose.yaml` to run alongside the [`gluetun`](https://github.com/qdm12/gluetun) VPN container.
 
 ## License
-This project is released under the [MIT License](LICENSE.txt).
+This project is released under the [Apache License 2.0](LICENSE.txt).
