@@ -1,8 +1,8 @@
-@FetchProx_HostAddress = https://localhost:7219
+@FetchProx_HostAddress = http://localhost:8080
 
 POST {{FetchProx_HostAddress}}/fetch
 Content-type: text/plain
 
-https://github.com/qdm12/gluetun
+https://en.wikipedia.org/wiki/Proxy_server
 
 ###

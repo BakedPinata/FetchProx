@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - VPN_SERVICE_PROVIDER=private internet access
+      - OPENVPN_USER=${VPN_USER}
+      - OPENVPN_PASSWORD=${VPN_PASS}
+      # Optional: timezone, DNS, etc.
+      - TZ=${TIME_ZONE}
+    volumes:
+      - ./vpn:/gluetun
+    ports:
+      # Expose ONLY the proxy endpoint to your LAN/ingress
+      - "8080:8080"   # maps to proxy container's 8080 via network_mode: service:gluetun
+    restart: unless-stopped
+
+  proxy:
+    build: .
+    container_name: vpn-fetch-proxy
+    # Share the gluetun network stack so outbound goes through VPN
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+    environment:
+      - ALLOW_HOSTS=  #example.com,api.example.org   # optional allowlist; leave blank to allow any public host
+      - MAX_CONTENT_BYTES=25000000
+      - TIMEOUT_SECONDS=30
+    restart: unless-stopped
