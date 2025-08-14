@@ -103,23 +103,25 @@ app.MapPost("/fetch", async (HttpRequest req, HttpResponse res) =>
     if (upstreamResp.Content.Headers.ContentType is MediaTypeHeaderValue ct)
         res.ContentType = ct.ToString();
 
-    // Enforce size cap (simple)
+    // Enforce size cap while streaming to response body
+    if (upstreamResp.Content.Headers.ContentLength is long len && len > maxContentBytes)
+        return Results.StatusCode((int)HttpStatusCode.RequestEntityTooLarge);
+
     await using var src = await upstreamResp.Content.ReadAsStreamAsync();
-    var buffered = new MemoryStream();
     var buffer = new byte[81920];
-    int read;
     long total = 0;
+    int read;
     while ((read = await src.ReadAsync(buffer, 0, buffer.Length)) > 0)
     {
         total += read;
         if (total > maxContentBytes)
         {
+            // Abort connection if upstream response exceeds limit
+            res.HttpContext.Abort();
             return Results.StatusCode((int)HttpStatusCode.RequestEntityTooLarge);
         }
-        buffered.Write(buffer, 0, read);
+        await res.Body.WriteAsync(buffer.AsMemory(0, read));
     }
-    buffered.Position = 0;
-    await buffered.CopyToAsync(res.Body);
 
     return Results.Empty;
 });

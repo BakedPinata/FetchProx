@@ -11,4 +11,8 @@ WORKDIR /app
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 EXPOSE 8080
 COPY --from=build /app .
+# Create non-root user and drop privileges
+RUN adduser --disabled-password --gecos '' appuser \
+    && chown -R appuser /app
+USER appuser
 ENTRYPOINT ["dotnet", "FetchProx.dll"]
