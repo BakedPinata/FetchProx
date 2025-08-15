@@ -23,7 +23,29 @@ var handler = new SocketsHttpHandler
 };
 var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(timeoutSec) };
 
+// ---- CORS config (via env CORS_ORIGINS="https://foo.com,https://bar.com"; "*" allowed) ----
+var corsEnv = Environment.GetEnvironmentVariable("CORS_ORIGINS") ?? "*";
+var corsOrigins = corsEnv
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("proxy", policy =>
+    {
+        if (corsOrigins.Length == 1 && corsOrigins[0] == "*")
+            policy.AllowAnyOrigin();
+        else
+            policy.WithOrigins(corsOrigins);
+
+        policy.AllowAnyHeader()
+              .AllowAnyMethod(); // GET, POST, OPTIONS, etc.
+    });
+});
+
 var app = builder.Build();
+
+// Enable CORS globally (handles preflight)
+app.UseCors("proxy");
 
 // Shared handler so POST and GET behave identically
 async Task<IResult> HandleFetch(string rawUrl, HttpResponse res)
