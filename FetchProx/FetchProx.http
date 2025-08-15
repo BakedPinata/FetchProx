@@ -6,3 +6,8 @@ Content-type: text/plain
 https://en.wikipedia.org/wiki/Proxy_server
 
 ###
+
+GET {{FetchProx_HostAddress}}/fetch?url=https://en.wikipedia.org/wiki/Proxy_server
+Access-Control-Request-Method: GET
+
+###

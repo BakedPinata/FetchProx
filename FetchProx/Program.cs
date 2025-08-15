@@ -25,27 +25,13 @@ var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(timeoutSec) 
 
 var app = builder.Build();
 
-app.MapPost("/fetch", async (HttpRequest req, HttpResponse res) =>
-{
-    // Accept either text/plain body containing a URL, or JSON: { "url": "..." }
-    string body;
-    if (req.ContentType?.StartsWith("application/json", StringComparison.OrdinalIgnoreCase) == true)
+// Shared handler so POST and GET behave identically
+async Task<IResult> HandleFetch(string rawUrl, HttpResponse res)
     {
-        using var reader = new StreamReader(req.Body, Encoding.UTF8);
-        var json = await reader.ReadToEndAsync();
-        var url = System.Text.Json.JsonDocument.Parse(json).RootElement.GetProperty("url").GetString();
-        body = url ?? "";
-    }
-    else
-    {
-        using var reader = new StreamReader(req.Body, Encoding.UTF8);
-        body = (await reader.ReadToEndAsync()).Trim();
-    }
+    if (string.IsNullOrWhiteSpace(rawUrl))
+        return Results.BadRequest("Body or query must contain a URL.");
 
-    if (string.IsNullOrWhiteSpace(body))
-        return Results.BadRequest("Body must be a URL (text/plain) or JSON {\"url\":\"...\"}");
-
-    if (!Uri.TryCreate(body, UriKind.Absolute, out var uri))
+    if (!Uri.TryCreate(rawUrl, UriKind.Absolute, out var uri))
         return Results.BadRequest("Invalid URL.");
 
     if (uri.Scheme is not ("http" or "https"))
@@ -66,12 +52,10 @@ app.MapPost("/fetch", async (HttpRequest req, HttpResponse res) =>
             return Results.StatusCode((int)HttpStatusCode.Forbidden);
     }
 
-    // Build upstream request
+    // Build & send upstream request
     var upstream = new HttpRequestMessage(HttpMethod.Get, uri);
-    // (Optional) forward a minimal UA
     upstream.Headers.UserAgent.ParseAdd("vpn-fetch-proxy/1.0");
 
-    // Perform request and stream response back
     HttpResponseMessage upstreamResp;
     try
     {
@@ -81,14 +65,13 @@ app.MapPost("/fetch", async (HttpRequest req, HttpResponse res) =>
     {
         return Results.StatusCode((int)HttpStatusCode.GatewayTimeout);
     }
-    catch (Exception)
+    catch
     {
         return Results.StatusCode((int)HttpStatusCode.BadGateway);
     }
 
     // Copy status code
     res.StatusCode = (int)upstreamResp.StatusCode;
-
 
     HashSet<string> HopByHopHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -103,27 +86,58 @@ app.MapPost("/fetch", async (HttpRequest req, HttpResponse res) =>
     if (upstreamResp.Content.Headers.ContentType is MediaTypeHeaderValue ct)
         res.ContentType = ct.ToString();
 
-    // Enforce size cap while streaming to response body
-    if (upstreamResp.Content.Headers.ContentLength is long len && len > maxContentBytes)
-        return Results.StatusCode((int)HttpStatusCode.RequestEntityTooLarge);
-
+    // Size-capped stream copy
     await using var src = await upstreamResp.Content.ReadAsStreamAsync();
+    var buffered = new MemoryStream();
     var buffer = new byte[81920];
-    long total = 0;
-    int read;
+    int read; long total = 0;
     while ((read = await src.ReadAsync(buffer, 0, buffer.Length)) > 0)
     {
         total += read;
         if (total > maxContentBytes)
-        {
-            // Abort connection if upstream response exceeds limit
-            res.HttpContext.Abort();
             return Results.StatusCode((int)HttpStatusCode.RequestEntityTooLarge);
-        }
-        await res.Body.WriteAsync(buffer.AsMemory(0, read));
+        buffered.Write(buffer, 0, read);
     }
+    buffered.Position = 0;
+    await buffered.CopyToAsync(res.Body);
 
     return Results.Empty;
+}
+
+// ---- routes ----
+
+// Existing POST /fetch (unchanged behavior; now calls shared handler)
+app.MapPost("/fetch", async (HttpRequest req, HttpResponse res) =>
+{
+    string rawUrl;
+
+    if (req.ContentType?.StartsWith("application/json", StringComparison.OrdinalIgnoreCase) == true)
+        {
+        using var reader = new StreamReader(req.Body, Encoding.UTF8);
+        var json = await reader.ReadToEndAsync();
+        var doc = System.Text.Json.JsonDocument.Parse(json);
+        rawUrl = doc.RootElement.TryGetProperty("url", out var u) ? u.GetString() ?? "" : "";
+        }
+    else
+    {
+        using var reader = new StreamReader(req.Body, Encoding.UTF8);
+        rawUrl = (await reader.ReadToEndAsync()).Trim();
+    }
+
+    return await HandleFetch(rawUrl, res);
+});
+
+// NEW: GET /fetch?url=https://example.com   (also accepts ?u=...)
+app.MapGet("/fetch", async (HttpRequest req, HttpResponse res) =>
+{
+    var rawUrl = req.Query.TryGetValue("url", out var v1) ? v1.ToString()
+               : req.Query.TryGetValue("u", out var v2) ? v2.ToString()
+               : null;
+
+    if (string.IsNullOrWhiteSpace(rawUrl))
+        return Results.BadRequest("Provide the target URL as ?url=... (or ?u=...).");
+
+    return await HandleFetch(rawUrl!, res);
 });
 
 app.Run();
