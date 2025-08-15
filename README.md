@@ -1,9 +1,9 @@
 # FetchProx
 
-FetchProx is a lightweight ASP.NET Core service that fetches HTTP/HTTPS resources on behalf of a client. It is designed to sit behind a VPN and exposes a single `/fetch` endpoint that applies basic SSRF protections and size limits.
+FetchProx is a lightweight ASP.NET Core service that fetches HTTP/HTTPS resources on behalf of a client. It is designed to sit behind a VPN and exposes a single `/fetch` endpoint (accessible via GET or POST) that applies basic SSRF protections and size limits.
 
 ## Features
-- Accepts POST requests with either plain text or JSON containing the target URL.
+- Accepts either POST requests (plain text or JSON bodies) or GET requests with `?url=`/`?u=` query parameters to specify the target URL.
 - Blocks access to private, loopback, and link‑local addresses.
 - Optional host allowlist to restrict which domains can be fetched.
 - Configurable response size limit and timeout.
@@ -29,13 +29,19 @@ Environment variables control runtime behavior:
 | `TIMEOUT_SECONDS` | Timeout for requests to the upstream server in seconds. | `30` |
 
 ## Example usage
-Plain text body:
+GET query string:
+```bash
+curl "http://localhost:8080/fetch?url=https://example.com"
+```
+
+POST with plain text:
 ```bash
 curl -X POST http://localhost:8080/fetch \
      -H "Content-Type: text/plain" \
      -d "https://example.com"
 ```
-JSON body:
+
+POST with JSON body:
 ```bash
 curl -X POST http://localhost:8080/fetch \
      -H "Content-Type: application/json" \
