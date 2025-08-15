@@ -27,6 +27,7 @@ services:
     depends_on:
       - gluetun
     environment:
+      - CORS_ORIGINS=${CORS_ORIGINS} #http://your-frontend.example   # or "*" while testing
       - ALLOW_HOSTS=  #example.com,api.example.org   # optional allowlist; leave blank to allow any public host
       - MAX_CONTENT_BYTES=25000000
       - TIMEOUT_SECONDS=30
