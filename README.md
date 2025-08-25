@@ -24,9 +24,18 @@ Environment variables control runtime behavior:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `CORS_ORIGINS` | **Required** for cross-origin requests. Comma-separated list of allowed origins (e.g., `https://yourapp.com,https://anotherapp.com`) or `*` for all origins. | *(none - CORS disabled)* |
 | `ALLOW_HOSTS` | Comma-separated list of allowed hostnames. Leave blank to allow any public host. | *(none)* |
 | `MAX_CONTENT_BYTES` | Maximum size of the upstream response in bytes. | `25000000` |
 | `TIMEOUT_SECONDS` | Timeout for requests to the upstream server in seconds. | `30` |
+| `RATE_LIMIT_REQUESTS` | Number of requests allowed per time window. | `100` |
+| `RATE_LIMIT_WINDOW_MINUTES` | Time window in minutes for rate limiting. | `1` |
+
+### Security Features
+- **Rate Limiting**: Configurable request rate limiting to prevent abuse
+- **CORS Control**: Explicit CORS origin configuration required for cross-origin requests
+- **Enhanced SSRF Protection**: DNS rebinding and time-of-check-time-of-use vulnerability fixes
+- **Private IP Filtering**: Blocks access to expanded private IP ranges including carrier NAT and multicast ranges
 
 ## Example usage
 GET query string:
